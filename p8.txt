@@ -1,0 +1,19 @@
+import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.linear_model import LogisticRegression
+df=pd.read_csv(r"/content/reviews.csv")
+train_data=df[df["Label"].notna()]
+test_data=df[df["Label"].isna()]
+x_train=train_data["Review"]
+y_train=train_data["Label"]
+vectorizer=CountVectorizer()
+x_train_vectorized=vectorizer.fit_transform(x_train)
+model=LogisticRegression()
+model.fit(x_train_vectorized,y_train)
+x_test=test_data["Review"]
+x_test_vectorized=vectorizer.transform(x_test)
+predictions=model.predict(x_test_vectorized)
+for review,prediction in zip(x_test,predictions):
+  print("review",review)
+  print("predictions:",prediction)
+  print()

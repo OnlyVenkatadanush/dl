@@ -1,0 +1,63 @@
+import pickle
+import pandas as pd
+import os
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.layers import GlobalAveragePooling2D,Dense
+from tensorflow.keras.models import Model
+data_path=r"/content/testdata"
+with open(os.path.join(data_path,"batches.meta"),"rb") as f:
+  meta=pickle.load(f,encoding="bytes")
+class_names=[x.decode("utf-8") for x in meta[b"label_names"]]
+print(class_names)
+def load_batch(file_name):
+  with open(os.path.join(data_path,file_name),"rb") as f:
+    data=pickle.load(f,encoding="bytes")
+  images=data[b"data"]
+  labels=np.array(data[b"labels"])
+  images=images.reshape(-1,3,32,32).transpose(0,2,3,1)
+  return images,labels
+x_train=[]
+y_train=[]
+for i in range(1,6):
+  images,labels=load_batch("data_batch"+str(i))
+  x_train.append(images)
+  y_train.append(labels)
+x_train=np.concatenate(x_train)
+y_train=np.concatenate(y_train)
+print(x_train.shape)
+x_train = x_train[:10000]
+y_train = y_train[:10000]
+x_test, y_test = load_batch("test_batch")
+x_test = x_test[:2000]
+y_test = y_test[:2000]
+x_train=tf.image.resize(x_train,(96,96))
+x_test=tf.image.resize(x_test,(96,96))
+x_train=tf.cast(x_train,tf.float32)
+x_test=tf.cast(x_test,tf.float32)
+base_model=MobileNetV2(weights="imagenet",include_top=False,input_shape=(96,96,3),alpha=0.35)
+base_model.trainable=False
+inputs=tf.keras.Input(shape=(96,96,3))
+x=base_model(inputs,training=False)
+
+x=GlobalAveragePooling2D()(x)
+x=Dense(128,activation="relu")(x)
+outputs=Dense(len(class_names),activation="softmax")(x)
+model=Model(inputs,outputs)
+model.compile(optimizer="adam",loss="sparse_categorical_crossentropy",metrics=["accuracy"])
+model.summary()
+history=model.fit(x_train,y_train,epochs=1,batch_size=16,validation_split=0.1)
+loss,accuracy=model.evaluate(x_test,y_test,batch_size=16)
+predictions=model.predict(x_test[:10])
+predicted_classes=np.argmax(predictions,axis=1)
+for i in range(10):
+  plt.subplot(2,5,i+1)
+  plt.imshow(x_test[i].numpy().astype("uint8"))
+  actual=class_names[y_test[i]]
+  predicted=class_names[predicted_classes[i]]
+  plt.title(f"Actual: {actual}\nPred: {predicted}")
+
+plt.tight_layout()
+plt.show()
